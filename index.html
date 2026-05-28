@@ -1,7 +1,7 @@
 
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
-  <title>MV-GRPO</title>
+  <title>AdaGRPO</title>
   <link rel="stylesheet" href="./FreeScale_files/css/bootstrap.min.css">
   <link rel="stylesheet" href="./FreeScale_files/css/dics.min.css">
   <link rel="stylesheet" href="./FreeScale_files/css/bulma.min.css">
@@ -38,7 +38,7 @@
   </style>
   
   <div class="content">
-    <h1><strong><font color="#9980FA">🎨 From Sparse to Dense</font>: Multi-View GRPO for Flow Models </p> via Augmented Condition Space</strong></h1>
+    <h1><strong><font color="#f0932b">⚓️ AdaGRPO</font>: A Plug-and-Play Adaptive Enhancement </p> for Flow-based GRPO</strong></h1>
     <!-- <p style="text-align: center; font-weight: bold; font-size: 1.2em">2025</p> -->
     <p id="authors"><a href="https://bujiazi.github.io/"><b>Jiazi Bu<sup>1,2,6*</sup></b></a> 
                     <a href="https://github.com/LPengYang/"><b>Pengyang Ling<sup>3*</sup></b></a> 
@@ -65,8 +65,8 @@
     </span></p>
     <font size="+2">
       <p style="text-align: center;">
-        <a href="https://arxiv.org/abs/2603.12648" target="_blank"><b>[Research Paper]</b></a> &nbsp;&nbsp;&nbsp;&nbsp;
-        <!-- <a href="https://bujiazi.github.io/mvgrpo.github.io/" target="_blank"><b>[Code (Coming Soon)]</b></a> -->
+        <a href="https://bujiazi.github.io/" target="_blank"><b>[Paper (Coming Soon)]</b></a> &nbsp;&nbsp;&nbsp;&nbsp;
+        <a href="https://bujiazi.github.io/" target="_blank"><b>[Code (Coming Soon)]</b></a>
       </p>
     </font>
     <br>
@@ -84,64 +84,80 @@
 
   <div class="content">
     <h2 style="text-align:center;"><b>Abstract</b></h2>
-    <p>Group Relative Policy Optimization (GRPO) has emerged as a powerful framework for preference alignment in text-to-image (T2I) flow models. However, we observe that the standard paradigm where evaluating a group of generated samples against a single condition suffers from insufficient exploration of inter-sample relationships, constraining both alignment efficacy and performance ceilings. To address this sparse single-view evaluation scheme, we propose Multi-View GRPO (<b>MV-GRPO</b>), a novel approach that enhances relationship exploration by augmenting the condition space to create a dense multi-view reward mapping. Specifically, for a group of samples generated from one prompt, MV-GRPO leverages a flexible Condition Enhancer to generate semantically adjacent yet diverse captions. These captions enable multi-view advantage re-estimation, capturing diverse semantic attributes and providing richer optimization signals. By deriving the probability distribution of the original samples conditioned on these new captions, we can incorporate them into the training process without costly sample regeneration. Extensive experiments demonstrate that MV-GRPO achieves superior alignment performance over state-of-the-art methods.</p>
+    <p>Group Relative Policy Optimization (GRPO) has demonstrated remarkable success in aligning text-to-image (T2I) flow models with human preferences.
+      However, we have identified that the learning loop of current flow-based GRPO is fundamentally decoupled from the learner's current capability, suffering from critical blind spots at both prompt selection and advantage estimation:
+      (i) Existing methods sample prompts randomly, overlooking the substantial impact of data selection on reinforcement learning (RL) efficacy—a factor proven crucial in GRPO for large language models;
+      (ii) They evaluate sample quality solely relying on intra-group statistics, lacking a global perspective to accurately measure true policy improvement.
+      To address these issues, we propose <b>Ada</b>ptive <b>GRPO</b> (<b>AdaGRPO</b>), a novel capability-aware RL algorithm tailored for flow models. Specifically, AdaGRPO consists of two principal components:
+      Online Curriculum Filtering Strategy: Dynamically tracks the model's proficiency and adaptively selects prompts that best match its current learning boundary;
+      Cross-Level Advantage Fusion: Synergistically integrates fine-grained intra-group advantages with macro-level global advantages, providing a comprehensive and unbiased policy evaluation.
+      As a lightweight, plug-and-play module, AdaGRPO can be seamlessly integrated with existing frameworks such as Flow-GRPO, DanceGRPO, and Flow-CPS. Extensive experiments demonstrate that AdaGRPO consistently drives performance gains while significantly stabilizes GRPO training for flow models.</p>
   </div>
 
   <div class="content">
     <h2><b>Observation and Motivation</b></h2>
     <p>
-    Existing flow-based GRPO methods typically operate under a ''Single-View'' paradigm: they evaluate the generated group solely against the single initial condition. This reward evaluation protocol can be reinterpreted as <b>a sparse, one-to-many mapping from the condition space \( \mathcal{C} \) to the data space \( \mathcal{X} \),</b> as shown in the Figure.1 (a). Fundamentally, this paradigm models intra-group relationships by ranking samples based on their alignment with a singular condition, ignoring the multifaceted nature of visual semantics. For instance, as illustrated in Figure.2, given a SDE sample describing a cat and a dog within a teacup, it may rank poorly under one condition (''A cat and a dog in a teacup.'') but highly under another similar condition specifying visual attributes like lighting, motion or composition. Consequently, relying solely on the ranking derived from a single prompt is insufficient to gauge the nuanced relationships among samples, resulting in an inherently sparse reward mapping. Consequently, relying solely on the ranking derived from a single prompt is insufficient to gauge the nuanced relationships among samples, resulting in an inherently sparse reward mapping.
-    In contrast, <b>by incorporating the diverse rankings induced by novel prompts, we can effectively densify the condition-data reward signal</b>, as depicted in Figure.1 (b). This strategy serves dual purposes: (i) enabling a more comprehensive exploration of intra-group relationships from multiple perspectives, and (ii) establishing intrinsic contrasts by identifying ranking shifts across different conditions, thereby facilitating preference-aligned generation under various conditions.</p>
+    Current flow-based GRPO frameworks are fundamentally decoupled from the model's evolving capability during training.<br>
+    <b>(1) <i>Prompt Selection</i></b>. Existing methods sample prompts blindly at random. Inspired by prompt selection strategies in RL for LLM, we investigate the impact of prompt difficulty on flow-based GRPO. 
+    <!-- Prior to each training step, we profile all prompts in a candidate batch via their deterministic ODE rewards, then apply filtering heuristics to select which ones actually enter training. -->
+    As shown in Fig.1 (a), training upon the "easiest" prompts (highest ODE rewards) causes severe performance degradation, while employing the "hardest" prompts (lowest ODE rewards) barely outperforms the random baseline.
+    In contrast, medium prompts drive notable gains, corroborating the established finding in LLM alignment.
+    However, the median reward of an isolated batch is biased, as it is detached from the model's aggregate proficiency 
+    (e.g., the median of a universally challenging batch remains overly difficult for the model).<br>
+    <b>(2) <i>Advantage Estimation</i></b>. Current methods typically evaluate samples solely via intra-group rewards and thus exhibit severe "myopia". 
+    They erroneously assign positive advantages to subpar samples simply because they are above the local intra-group mean, even if they fall below the model's global capability (false positives), 
+    while penalize high-quality samples that fall below the local mean but actually surpass the global capability (false negatives), as shown in Fig.1 (b). 
+    Without a reliable reference to gauge absolute policy progression, these local biases inevitably obscure the true optimization direction.
     <div style="text-align: center;">
-    <img width="960" src="./FreeScale_files/figs/fig_motivation.png">
-    <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
-      Figure 1: Reward Evaluation in GRPO Training.
-    </h4>
-  </div>
-  <div style="text-align: center;">
     <img width="960" src="./FreeScale_files/figs/fig_observation.png">
     <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
-      Figure 2: Reward Ranking Varies with Conditions.
+      Figure 1: Key Observations.
     </h4>
   </div>
   </div>
 
   <div class="content">
     <h2><b>Methodology</b></h2>
-    <p>Given a group of SDE samples, MV-GRPO first leverages a flexible Condition Enhancer module (a pretrained VLM or LLM) to generate diverse augmented conditions. These augmented descriptors, along with the original condition, form a multi-view condition cluster for dense condition-data reward signals, facilitating comprehensive advantage estimation. We justify optimizing the policy conditioned on an augmented view using trajectories generated under the original condition in the Theoretical Perspective part of our paper.</p>
+    <p>AdaGRPO is a novel capability-aware RL algorithm tailored for flow models, featuring two principal components.<br>
+      <b>(i) <i>Online Curriculum Filtering Strategy</i></b> is introduced to apply prompt selection. 
+      Rooted in curriculum learning, this module maintains an Exponential Moving Average (EMA) of historical rewards to explicitly track the model's global generation proficiency, adaptively selecting candidate prompts perfectly at the current learning boundary.
+      This eliminates localized batch bias and ensures a highly constructive optimization landscape.<br>
+      <b>(ii) <i>Cross-Level Advantage Fusion</i></b> is proposed to calibrate advantage estimation. 
+      By synergistically fusing intra-group local advantages with macro-level global advantages, samples are rewarded not only for outperforming their immediate peers but also for surpassing the model's past capability bounds, yielding an unbiased signal of absolute policy progression.</p>
     <div style="text-align: center;">
     <img width="960" src="./FreeScale_files/figs/fig_framework.png">
     <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
-      Figure 3: Overview of MV-GRPO.
+      Figure 2: Overview of AdaGRPO.
     </h4>
     </div>
   </div>
   
   <div class="content">
     <h2><b>Qualitative Comparison</b></h2>
-    <p>Qualitative comparisons with existing flow-based GRPO methods. MV-GRPO consistently outperforms the baselines in semantic alignment, visual fidelity, and structural coherence across diverse scenarios and reward models.</p>
+    <p>Qualitative comparisons with existing flow-based GRPO methods (<i>with</i> and <i>without</i> AdaGRPO). 
+      AdaGRPO consistently elevates the performance of baseline frameworks in visual fidelity, aesthetic appeal, and semantic adherence.</p>
     <div style="text-align: center;">
-    <img width="960" src="./FreeScale_files/figs/fig_img_compare_hpsv3.png">
+    <img width="960" src="./FreeScale_files/figs/fig_compare_hpsv2.png">
     <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
-      Figure 4: Qualitative Comparisons with Baselines on HPS-v3.
+      Figure 3: Qualitative Comparisons with Baselines on HPS-v2 (<i>with</i> and <i>without</i> AdaGRPO).
     </h4>
     </div>
     <br>
     <div style="text-align: center;">
-      <img width="960" src="./FreeScale_files/figs/fig_img_compare_urv2.png">
+      <img width="960" src="./FreeScale_files/figs/fig_compare_hpsv3.png">
       <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
-        Figure 5: Qualitative Comparisons with Baselines on UnifiedReward-v2.
+        Figure 4: Qualitative Comparisons with Baselines on HPS-v3 (<i>with</i> and <i>without</i> AdaGRPO).
       </h4>
       </div>
   </div>
   
   <div class="content">
     <h2><b>Quantitative Evaluation</b></h2>
-    <p>Quantitative assessments of the proposed MV-GRPO and other baselines. MV-GRPO demonstrates consistent superiority under both single reward (HPS-v3 or UnifiedReward-v2) and multi-reward (HPS-v3 + CLIP) settings. The reward curves during training further validate that our MV-GRPO outperforms baselines in convergence speed and performance ceiling.</p>
+    <p>Quantitative assessments of the proposed AdaGRPO and baseline methods. Under both single reward (HPS-v2/v3) and multi-reward (HPS-v3 + CLIP) settings, AdaGRPO consistently brings substantial improvements to the prevailing baselines (Flow-GRPO, DanceGRPO, and Flow-CPS), validating its effectiveness and architecture-agnostic nature.</p>
     <div style="text-align: center;">
       <img width="960" src="./FreeScale_files/figs/fig_curve.png">
       <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
-        Figure 6: Reward Curves during Training.
+        Figure 5: Reward Curves during Training (<i>with</i> and <i>without</i> AdaGRPO).
       </h4>
       </div>
       <br>
@@ -151,26 +167,33 @@
   </div>
 
   <div class="content">
-    <h2><b>Gallery of MV-GRPO</b></h2>
-    <p>We present additional visual results of the proposed MV-GRPO. More samples can be found in our supplementary material.</p>
+    <h2><b>Gallery of AdaGRPO</b></h2>
+    <p>We present additional visual results of the proposed AdaGRPO. More samples can be found in our appendix.</p>
     <div style="text-align: center;">
     <img width="960" src="./FreeScale_files/figs/fig_gallery_1.png">
     <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
-      Figure 7: Additional Visual Samples of MV-GRPO (1/3).
+      Figure 6: Additional Visual Samples of AdaGRPO (1/4).
     </h4>
     </div>
     <br>
     <div style="text-align: center;">
     <img width="960" src="./FreeScale_files/figs/fig_gallery_2.png">
     <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
-      Figure 8: Additional Visual Samples of MV-GRPO (2/3).
+      Figure 7: Additional Visual Samples of AdaGRPO (2/4).
     </h4>
     </div>
     <br>
     <div style="text-align: center;">
     <img width="960" src="./FreeScale_files/figs/fig_gallery_3.png">
     <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
-      Figure 9: Additional Visual Samples of MV-GRPO (3/3).
+      Figure 8: Additional Visual Samples of AdaGRPO (3/4).
+    </h4>
+    </div>
+    <br>
+    <div style="text-align: center;">
+    <img width="960" src="./FreeScale_files/figs/fig_gallery_4.png">
+    <h4 class="subtitle has-text-centered" style="margin-top: 20px;">
+      Figure 9: Additional Visual Samples of AdaGRPO (4/4).
     </h4>
     </div>
   </div>
@@ -183,12 +206,13 @@
   </p>
   <div class="row">
   <pre>
-    @article{bu2026sparse,
+    TBD
+    <!-- @article{bu2026sparse,
       title={From Sparse to Dense: Multi-View GRPO for Flow Models via Augmented Condition Space},
       author={Bu, Jiazi and Ling, Pengyang and Zhou, Yujie and Wang, Yibin and Zang, Yuhang and Wei, Tianyi and Zhan, Xiaohang and Wang, Jiaqi and Wu, Tong and Pan, Xingang and others},
       journal={arXiv preprint arXiv:2603.12648},
       year={2026}
-    }
+    } -->
   </pre>
   </div>
   </div>
