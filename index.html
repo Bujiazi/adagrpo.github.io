@@ -92,7 +92,6 @@
     <p>
     Current flow-based GRPO frameworks are fundamentally decoupled from the model's evolving capability during training.<br>
     <b>(1) <i>Prompt Selection</i></b>. Existing methods sample prompts blindly at random. Inspired by prompt selection strategies in RL for LLM, we investigate the impact of prompt difficulty on flow-based GRPO. 
-    <!-- Prior to each training step, we profile all prompts in a candidate batch via their deterministic ODE rewards, then apply filtering heuristics to select which ones actually enter training. -->
     As shown in Fig.1 (a), training upon the "easiest" prompts (highest ODE rewards) causes severe performance degradation, while employing the "hardest" prompts (lowest ODE rewards) barely outperforms the random baseline.
     In contrast, medium prompts drive notable gains, corroborating the established finding in LLM alignment.
     However, the median reward of an isolated batch is biased, as it is detached from the model's aggregate proficiency 
